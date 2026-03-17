@@ -5,22 +5,20 @@ import lombok.Getter;
 import java.io.PrintStream;
 
 public class StreamWriter implements Runnable {
-
-    private final String message;
-    @Getter
-    private final int id;
-    private final PrintStream output;
-    private final Runnable onTick;
+    @Getter private final String message;
+    @Getter private final int id;
+    @Getter private final PrintStream output;
+    @Getter private final Runnable on_tick;
     private volatile StreamingMonitor monitor;
 
-    public StreamWriter(int id, String message, PrintStream output, Runnable onTick) {
+    public StreamWriter(int id, String message, PrintStream output, Runnable on_tick) {
         this.message = message;
         this.id = id;
         this.output = output;
-        this.onTick = onTick;
+        this.on_tick = on_tick;
     }
 
-    public void attachMonitor(StreamingMonitor monitor) {
+    public void attach_monitor(StreamingMonitor monitor) {
         this.monitor = monitor;
     }
 
@@ -28,12 +26,10 @@ public class StreamWriter implements Runnable {
     public void run() {
         while (true) {
             try {
-                if (!monitor.allowTick(id)) {
-                    if (monitor.finished()) return;
-                    continue;
-                }
+                monitor.await(id);
                 output.print(message);
-                onTick.run();
+                on_tick.run();
+                monitor.tick_done();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return;

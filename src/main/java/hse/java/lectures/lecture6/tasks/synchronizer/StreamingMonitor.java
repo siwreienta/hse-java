@@ -1,47 +1,41 @@
 package hse.java.lectures.lecture6.tasks.synchronizer;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import lombok.Getter;
 
 public class StreamingMonitor {
-    private final Map<Integer, Integer> ticks_ = new HashMap<>();
-    private final int ticks_per_writer_;
-    private final int writers_amount_;
-    private int current_idx_ = 0;
-    private int total_ticks_ = 0;
-    private final int max_ticks_;
-    private final List<Integer> sorted_id_;
+    @Getter private final int[] sorted_ids;
+    @Getter private final int[] counts;
+    @Getter private final int ticks_per_writer;
+    @Getter private int current_idx = 0;
+    @Getter private int remaining_ticks;
 
-    public StreamingMonitor(List<Integer> ids, int ticks_per_writer) {
-        this.sorted_id_ = ids;
-        this.ticks_per_writer_ = ticks_per_writer;
-        this.writers_amount_ = ids.size();
-        this.max_ticks_ = writers_amount_ * ticks_per_writer_;
-        for (Integer id : ids) ticks_.put(id, 0);
+    public StreamingMonitor(int[] sorted_ids, int ticks_per_writer) {
+        this.sorted_ids = sorted_ids;
+        this.ticks_per_writer = ticks_per_writer;
+        this.counts = new int[sorted_ids.length];
+        this.remaining_ticks = sorted_ids.length * ticks_per_writer;
     }
 
-    public synchronized boolean allowTick(int id) throws InterruptedException {
-        while (!sorted_id_.get(current_idx_).equals(id) && total_ticks_ < max_ticks_) wait();
-        if (total_ticks_ >= max_ticks_) {
+    public synchronized void await(int id) throws InterruptedException {
+        while (remaining_ticks > 0 && sorted_ids[current_idx] != id) wait();
+        while (remaining_ticks == 0) wait();
+    }
+
+    public synchronized void tick_done() {
+        counts[current_idx]++;
+        remaining_ticks--;
+        if (remaining_ticks == 0) {
             notifyAll();
-            return false;
+            return;
         }
-        int count = ticks_.get(id);
-        if (count >= ticks_per_writer_) {
-            current_idx_ = (current_idx_ + 1) % writers_amount_;
-            notifyAll();
-            return false;
-        }
-        ticks_.put(id, count + 1);
-        total_ticks_++;
-        current_idx_ = (current_idx_ + 1) % writers_amount_;
+        int writers_count = sorted_ids.length;
+        int next = (current_idx + 1) % writers_count;
+        while (counts[next] >= ticks_per_writer) next = (next + 1) % writers_count;
+        current_idx = next;
         notifyAll();
-        return true;
     }
 
-    public synchronized boolean finished() {
-        return total_ticks_ >= max_ticks_;
+    public synchronized void wait_all() throws InterruptedException {
+        while (remaining_ticks > 0) wait();
     }
-
 }
