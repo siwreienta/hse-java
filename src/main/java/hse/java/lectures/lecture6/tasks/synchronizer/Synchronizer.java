@@ -22,12 +22,24 @@ public class Synchronizer {
      * in strict ascending id order.
      */
     public void execute() {
-        // add monitor and sync
+
+        List<Integer> ids = tasks.stream()
+                .map(StreamWriter::getId)
+                .sorted()
+                .toList();
+
+        StreamingMonitor monitor = new StreamingMonitor(ids, ticksPerWriter);
+        for (StreamWriter writer : tasks) writer.attachMonitor(monitor);
         for (StreamWriter writer : tasks) {
             Thread worker = new Thread(writer, "stream-writer-" + writer.getId());
             worker.setDaemon(true);
             worker.start();
         }
+        while (!monitor.finished()) {
+            try {
+                Thread.sleep(1);
+            } catch (InterruptedException ignored) {
+            }
+        }
     }
-
 }
